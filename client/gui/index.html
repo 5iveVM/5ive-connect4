@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>5ive Connect4 Localnet</title>
+  <style>
+    body { font-family: monospace; background: #111; color: #eee; margin: 0; padding: 16px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    button, select { background: #222; color: #eee; border: 1px solid #444; padding: 8px 10px; }
+    .grid { display: grid; grid-template-columns: repeat(7, 44px); gap: 4px; margin: 12px 0; }
+    .cell { width: 44px; height: 44px; font-size: 20px; }
+    pre { background: #1a1a1a; border: 1px solid #333; padding: 12px; overflow: auto; max-height: 320px; }
+  </style>
+</head>
+<body>
+  <h1>5ive Connect4 (localnet)</h1>
+  <div class="row">
+    <button id="init">Init</button>
+    <button id="open">Create Open</button>
+    <button id="invite">Create Invite</button>
+    <button id="join">Join</button>
+    <button id="timeout">Claim Timeout</button>
+    <button id="resign">Resign</button>
+    <button id="cancel">Cancel</button>
+    <button id="refresh">Refresh</button>
+  </div>
+  <div class="row">
+    <label>Role
+      <select id="role">
+        <option value="p1">p1</option>
+        <option value="p2" selected>p2</option>
+        <option value="p3">p3</option>
+      </select>
+    </label>
+  </div>
+  <div class="row" id="columns"></div>
+  <div class="grid" id="board"></div>
+  <pre id="out"></pre>
+
+  <script>
+    const out = document.getElementById('out');
+    const boardEl = document.getElementById('board');
+    const colsEl = document.getElementById('columns');
+    const roleEl = document.getElementById('role');
+    let state = null;
+
+    const post = async (url, body = {}) => {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return res.json();
+    };
+
+    const renderBoard = () => {
+      colsEl.innerHTML = '';
+      for (let c = 0; c < 7; c++) {
+        const b = document.createElement('button');
+        b.textContent = `Drop ${c}`;
+        b.onclick = async () => {
+          state = await post('/api/move', { role: roleEl.value, column: c });
+          render();
+        };
+        colsEl.appendChild(b);
+      }
+
+      boardEl.innerHTML = '';
+      const board = state?.state?.board || [];
+      for (let r = 5; r >= 0; r--) {
+        for (let c = 0; c < 7; c++) {
+          const i = (r * 7) + c;
+          const btn = document.createElement('button');
+          btn.className = 'cell';
+          btn.textContent = board[i] === 1 ? 'Y' : board[i] === 2 ? 'R' : '·';
+          boardEl.appendChild(btn);
+        }
+      }
+    };
+
+    const render = () => {
+      renderBoard();
+      out.textContent = JSON.stringify(state, null, 2);
+    };
+
+    document.getElementById('init').onclick = async () => { state = await post('/api/init', { turnTimeoutSecs: 5 }); render(); };
+    document.getElementById('open').onclick = async () => { state = await post('/api/create-open'); render(); };
+    document.getElementById('invite').onclick = async () => { state = await post('/api/create-invite'); render(); };
+    document.getElementById('join').onclick = async () => { state = await post('/api/join', { role: roleEl.value }); render(); };
+    document.getElementById('timeout').onclick = async () => { state = await post('/api/claim-timeout', { role: roleEl.value }); render(); };
+    document.getElementById('resign').onclick = async () => { state = await post('/api/resign', { role: roleEl.value }); render(); };
+    document.getElementById('cancel').onclick = async () => { state = await post('/api/cancel'); render(); };
+    document.getElementById('refresh').onclick = async () => { state = await post('/api/state'); render(); };
+
+    (async () => { state = await post('/api/state'); render(); })();
+  </script>
+</body>
+</html>
