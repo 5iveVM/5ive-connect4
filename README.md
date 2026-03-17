@@ -1,42 +1,20 @@
-# 5ive-connect4
+# 5ive Connect4
 
 Connect4 two-wallet PvP on 5IVE VM.
 
-## Features
-- Connect4-only contract mode
-- Open lobby or direct invite matchmaking
-- Turn-based two-wallet gameplay
-- On-chain timeout claim (`claim_timeout`)
-- Localnet GUI with technical panel at bottom
+## What is included
 
-## Commands
+- Connect4-only 5ive DSL contract in `src/main.v`
+- TypeScript localnet engine and tests in `client/`
+- Next.js web frontend in `web/` using the web-starter pattern
+
+## Quickstart
+
 ```bash
 npm run build
-npm test
-npm run test:onchain:local
-npm run client:run:local
+npm run test
 npm run client:test:localnet
 npm run client:test:journey:localnet
-npm run client:gui:localnet
+npm run web:install
+npm run web:dev
 ```
-
-## Contract API
-- `init_config(config, authority, turn_timeout_secs, allow_open_matches, allow_invites)`
-- `init_profile(profile, owner)`
-- `create_open_match(config, match_state, player1, mode)` (`mode` must be Connect4)
-- `create_invite_match(config, match_state, player1, invited_player, mode)` (`mode` must be Connect4)
-- `join_match(config, match_state, player2)`
-- `play_c4(match_state, caller, column_index)`
-- `claim_timeout(match_state, caller)`
-- `resign(match_state, caller)`
-- `cancel_waiting_match(match_state, caller)`
-- `get_match_status(match_state)`
-- `get_match_turn(match_state)`
-- `get_match_winner(match_state)`
-
-## Localnet GUI
-Run:
-```bash
-npm run client:gui:localnet
-```
-Open `http://127.0.0.1:4178`.

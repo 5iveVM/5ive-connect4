@@ -10,29 +10,22 @@ async function run() {
   const engine = await LocalnetConnect4Engine.create(projectRoot);
   const steps: unknown[] = [];
 
-  steps.push({ setup: await engine.initGame(5) });
-  steps.push({ createOpenC4: await engine.createOpen('c4') });
-  steps.push({ joinC4: await engine.join('p2') });
-  steps.push({ c41: await engine.playC4('p1', 0) });
-  steps.push({ c42: await engine.playC4('p2', 1) });
-  steps.push({ c43: await engine.playC4('p1', 0) });
-  steps.push({ c44: await engine.playC4('p2', 1) });
-  steps.push({ c45: await engine.playC4('p1', 0) });
-  steps.push({ c46: await engine.playC4('p2', 1) });
-  steps.push({ c47: await engine.playC4('p1', 0) });
+  steps.push({ setup: await engine.initGame(2) });
+  steps.push({ createOpen: await engine.createOpen() });
+  steps.push({ join: await engine.join('p2') });
+  steps.push({ m1: await engine.play('p1', 0) });
+  steps.push({ m2: await engine.play('p2', 1) });
+  steps.push({ m3: await engine.play('p1', 0) });
+  steps.push({ m4: await engine.play('p2', 1) });
+  steps.push({ m5: await engine.play('p1', 0) });
+  steps.push({ m6: await engine.play('p2', 1) });
+  steps.push({ m7: await engine.play('p1', 0) });
 
-  console.log(
-    JSON.stringify(
-      {
-        steps,
-        finalState: engine.getState(),
-        addresses: engine.getAddresses(),
-        readbacks: await engine.readOnchainSummary(),
-      },
-      null,
-      2
-    )
-  );
+  steps.push({ status: await engine.getStatus() });
+  steps.push({ turn: await engine.getTurn() });
+  steps.push({ winner: await engine.getWinner() });
+
+  console.log(JSON.stringify({ steps, finalState: engine.getState(), addresses: engine.getAddresses() }, null, 2));
 }
 
 run().catch((err) => {

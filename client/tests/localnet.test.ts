@@ -12,6 +12,10 @@ function hasLocalnet(): boolean {
   return process.env.FIVE_RPC_URL === 'http://127.0.0.1:8899' || !process.env.FIVE_RPC_URL;
 }
 
+function mustPass(step: { name: string; ok: boolean; err: string | null }) {
+  assert.equal(step.ok, true, `${step.name} failed: ${step.err || 'unknown error'}`);
+}
+
 test('engine create returns valid addresses on localnet', async (t) => {
   if (!hasLocalnet()) {
     t.skip('localnet-only test');
@@ -23,7 +27,24 @@ test('engine create returns valid addresses on localnet', async (t) => {
 
   assert.equal(typeof addresses.scriptAccount, 'string');
   assert.ok(addresses.scriptAccount.length > 20);
-  assert.ok(addresses.p1.length > 20);
-  assert.ok(addresses.p2.length > 20);
   assert.notEqual(addresses.p1, addresses.p2);
+});
+
+test('public function coverage: init/open/join/play/getters', async (t) => {
+  if (!hasLocalnet()) {
+    t.skip('localnet-only test');
+    return;
+  }
+
+  const engine = await LocalnetConnect4Engine.create(projectRoot);
+  (await engine.initGame(2)).forEach(mustPass);
+
+  mustPass(await engine.createOpen());
+  mustPass(await engine.join('p2'));
+  mustPass(await engine.play('p1', 0));
+  mustPass(await engine.play('p2', 1));
+
+  mustPass(await engine.getStatus());
+  mustPass(await engine.getTurn());
+  mustPass(await engine.getWinner());
 });

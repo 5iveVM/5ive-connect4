@@ -3,16 +3,17 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "outDir": "dist"
+    "skipLibCheck": true
   },
   "include": [
+    "src/localnet-engine.ts",
     "main.ts",
     "journey.localnet.ts",
-    "gui-server.ts",
-    "src/**/*.ts",
-    "tests/**/*.ts"
+    "tests/localnet.test.ts",
+    "tests/user-journey.localnet.test.ts"
   ]
 }
