@@ -21,7 +21,6 @@ export type StepResult = {
 };
 
 export type Role = 'p1' | 'p2' | 'p3';
-export type GameMode = 'c4';
 
 export type LocalnetState = {
   config: {
@@ -31,7 +30,6 @@ export type LocalnetState = {
     nonce: number;
   };
   match: {
-    mode: number;
     status: number;
     player1: string;
     player2: string;
@@ -42,15 +40,14 @@ export type LocalnetState = {
     lastMoveIndex: number;
     moveCount: number;
     turnDeadlineTs: number;
-    createdAtTs: number;
     startedAtTs: number;
     endedAtTs: number;
   };
-  board: number[];
-  heights: number[];
+  board: {
+    cells: number[];
+    heights: number[];
+  };
 };
-
-const MODE_C4 = 1;
 
 const MATCH_WAITING = 0;
 const MATCH_ACTIVE = 1;
@@ -90,9 +87,7 @@ async function resolveArtifactPath(projectRoot: string): Promise<string> {
   } catch {
     const entries = await readdir(buildDir);
     const firstFive = entries.find((name) => name.endsWith('.five'));
-    if (!firstFive) {
-      throw new Error(`No .five artifact found in ${buildDir}. Run npm run build from project root.`);
-    }
+    if (!firstFive) throw new Error(`No .five artifact found in ${buildDir}. Run npm run build from project root.`);
     return join(buildDir, firstFive);
   }
 }
@@ -132,13 +127,7 @@ async function sendIx(
     });
     const metaErr = txMeta?.meta?.err ?? null;
     const cu = txMeta?.meta?.computeUnitsConsumed ?? parseConsumedUnits(txMeta?.meta?.logMessages);
-    return {
-      name,
-      signature,
-      computeUnits: cu,
-      ok: metaErr == null,
-      err: metaErr == null ? null : JSON.stringify(metaErr),
-    };
+    return { name, signature, computeUnits: cu, ok: metaErr == null, err: metaErr == null ? null : JSON.stringify(metaErr) };
   } catch (err) {
     return {
       name,
@@ -172,13 +161,7 @@ async function createOwnedAccount(
     const signature = await connection.sendTransaction(tx, [payer, account], CONFIRM);
     const latest = await connection.getLatestBlockhash('confirmed');
     await connection.confirmTransaction({ signature, ...latest }, 'confirmed');
-    return {
-      name: `setup:create_account:${account.publicKey.toBase58()}`,
-      signature,
-      computeUnits: null,
-      ok: true,
-      err: null,
-    };
+    return { name: `setup:create_account:${account.publicKey.toBase58()}`, signature, computeUnits: null, ok: true, err: null };
   } catch (err) {
     return {
       name: `setup:create_account:${account.publicKey.toBase58()}`,
@@ -191,208 +174,109 @@ async function createOwnedAccount(
 }
 
 async function deployScript(connection: Connection, payer: Keypair, loaded: any, fiveVmProgramId: string) {
-  let result: any = await FiveSDK.deployToSolana(loaded.bytecode, connection, payer, {
-    fiveVMProgramId: fiveVmProgramId,
-  });
-
+  let result: any = await FiveSDK.deployToSolana(loaded.bytecode, connection, payer, { fiveVMProgramId: fiveVmProgramId });
   if (!result.success) {
-    result = await FiveSDK.deployLargeProgramToSolana(loaded.bytecode, connection, payer, {
-      fiveVMProgramId: fiveVmProgramId,
-    });
+    result = await FiveSDK.deployLargeProgramToSolana(loaded.bytecode, connection, payer, { fiveVMProgramId: fiveVmProgramId });
   }
-
   const scriptAccount = result.scriptAccount || result.programId;
-  if (!result.success || !scriptAccount) {
-    throw new Error(`deploy failed: ${result.error || 'unknown error'}`);
-  }
-
-  return {
-    scriptAccount,
-    signature: result.transactionId || null,
-    deploymentCost: result.deploymentCost || null,
-  };
+  if (!result.success || !scriptAccount) throw new Error(`deploy failed: ${result.error || 'unknown error'}`);
+  return { scriptAccount, signature: result.transactionId || null };
 }
 
-function c4Index(row: number, col: number): number {
-  return row * 7 + col;
-}
+function c4Index(row: number, col: number): number { return row * 7 + col; }
 
 function detectC4Winner(cells: number[]): number {
-  for (let r = 0; r < 6; r++) {
-    for (let c = 0; c < 4; c++) {
-      const v = cells[c4Index(r, c)];
-      if (v !== 0 && v === cells[c4Index(r, c + 1)] && v === cells[c4Index(r, c + 2)] && v === cells[c4Index(r, c + 3)]) return v;
-    }
+  for (let r = 0; r < 6; r++) for (let c = 0; c < 4; c++) {
+    const v = cells[c4Index(r, c)];
+    if (v !== 0 && v === cells[c4Index(r, c + 1)] && v === cells[c4Index(r, c + 2)] && v === cells[c4Index(r, c + 3)]) return v;
   }
-  for (let c = 0; c < 7; c++) {
-    for (let r = 0; r < 3; r++) {
-      const v = cells[c4Index(r, c)];
-      if (v !== 0 && v === cells[c4Index(r + 1, c)] && v === cells[c4Index(r + 2, c)] && v === cells[c4Index(r + 3, c)]) return v;
-    }
+  for (let c = 0; c < 7; c++) for (let r = 0; r < 3; r++) {
+    const v = cells[c4Index(r, c)];
+    if (v !== 0 && v === cells[c4Index(r + 1, c)] && v === cells[c4Index(r + 2, c)] && v === cells[c4Index(r + 3, c)]) return v;
   }
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 4; c++) {
-      const v = cells[c4Index(r, c)];
-      if (v !== 0 && v === cells[c4Index(r + 1, c + 1)] && v === cells[c4Index(r + 2, c + 2)] && v === cells[c4Index(r + 3, c + 3)]) return v;
-    }
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+    const v = cells[c4Index(r, c)];
+    if (v !== 0 && v === cells[c4Index(r + 1, c + 1)] && v === cells[c4Index(r + 2, c + 2)] && v === cells[c4Index(r + 3, c + 3)]) return v;
   }
-  for (let r = 3; r < 6; r++) {
-    for (let c = 0; c < 4; c++) {
-      const v = cells[c4Index(r, c)];
-      if (v !== 0 && v === cells[c4Index(r - 1, c + 1)] && v === cells[c4Index(r - 2, c + 2)] && v === cells[c4Index(r - 3, c + 3)]) return v;
-    }
+  for (let r = 3; r < 6; r++) for (let c = 0; c < 4; c++) {
+    const v = cells[c4Index(r, c)];
+    if (v !== 0 && v === cells[c4Index(r - 1, c + 1)] && v === cells[c4Index(r - 2, c + 2)] && v === cells[c4Index(r - 3, c + 3)]) return v;
   }
   return WINNER_NONE;
 }
 
 export class LocalnetConnect4Engine {
-  readonly projectRoot: string;
-  readonly connection: Connection;
-  readonly payer: Keypair;
-  readonly player2: Keypair;
-  readonly player3: Keypair;
-  readonly fiveVmProgramId: string;
-  readonly scriptAccount: string;
-  readonly program: any;
-  readonly configAccount: Keypair;
-  readonly matchAccount: Keypair;
-  readonly profileP1Account: Keypair;
-  readonly profileP2Account: Keypair;
-  readonly setupSteps: StepResult[];
-
-  private state: LocalnetState;
-
-  private constructor(args: {
-    projectRoot: string;
-    connection: Connection;
-    payer: Keypair;
-    player2: Keypair;
-    player3: Keypair;
-    fiveVmProgramId: string;
-    scriptAccount: string;
-    program: any;
-    configAccount: Keypair;
-    matchAccount: Keypair;
-    profileP1Account: Keypair;
-    profileP2Account: Keypair;
-    setupSteps: StepResult[];
-  }) {
-    this.projectRoot = args.projectRoot;
-    this.connection = args.connection;
-    this.payer = args.payer;
-    this.player2 = args.player2;
-    this.player3 = args.player3;
-    this.fiveVmProgramId = args.fiveVmProgramId;
-    this.scriptAccount = args.scriptAccount;
-    this.program = args.program;
-    this.configAccount = args.configAccount;
-    this.matchAccount = args.matchAccount;
-    this.profileP1Account = args.profileP1Account;
-    this.profileP2Account = args.profileP2Account;
-    this.setupSteps = args.setupSteps;
-
-    this.state = {
-      config: {
-        turnTimeoutSecs: 120,
-        allowOpenMatches: true,
-        allowInvites: true,
-        nonce: 0,
-      },
-      match: {
-        mode: MODE_C4,
-        status: MATCH_WAITING,
-        player1: '',
-        player2: '',
-        invitedPlayer: '',
-        invitedRequired: false,
-        currentTurn: TURN_P1,
-        winner: WINNER_NONE,
-        lastMoveIndex: 0,
-        moveCount: 0,
-        turnDeadlineTs: 0,
-        createdAtTs: 0,
-        startedAtTs: 0,
-        endedAtTs: 0,
-      },
-      board: new Array(42).fill(0),
-      heights: [0, 0, 0, 0, 0, 0, 0],
-    };
-  }
+  private constructor(
+    private readonly connection: Connection,
+    private readonly program: any,
+    private readonly payer: Keypair,
+    private readonly player2: Keypair,
+    private readonly player3: Keypair,
+    private readonly fiveVmProgramId: string,
+    private readonly scriptAccount: string,
+    private readonly configAccount: Keypair,
+    private readonly matchAccount: Keypair,
+    private readonly profileP1Account: Keypair,
+    private readonly profileP2Account: Keypair,
+    private readonly state: LocalnetState,
+    readonly setupSteps: StepResult[]
+  ) {}
 
   static async create(projectRoot: string): Promise<LocalnetConnect4Engine> {
-    const artifactPath = await resolveArtifactPath(projectRoot);
-    const artifactText = await readFile(artifactPath, 'utf8');
-    const loaded = await FiveSDK.loadFiveFile(artifactText);
-
-    const rpcUrl = process.env.FIVE_RPC_URL || 'http://127.0.0.1:8899';
-    const fiveVmProgramId = process.env.FIVE_VM_PROGRAM_ID || '5ive58PJUPaTyAe7tvU1bvBi25o7oieLLTRsJDoQNJst';
+    const network = process.env.FIVE_NETWORK || 'localnet';
+    const rpcUrl = process.env.FIVE_RPC_URL || (network === 'localnet' ? 'http://127.0.0.1:8899' : 'https://api.devnet.solana.com');
+    const fiveVmProgramId = process.env.FIVE_VM_PROGRAM_ID || '5ive5uKDkc3Yhyfu1Sk7i3eVPDQUmG2GmTm2FnUZiTJd';
 
     const connection = new Connection(rpcUrl, 'confirmed');
     const payer = await loadPayer();
     const player2 = Keypair.generate();
     const player3 = Keypair.generate();
 
-    const vmProgramPk = new PublicKey(fiveVmProgramId);
-    const vmProgramInfo = await connection.getAccountInfo(vmProgramPk, 'confirmed');
-    if (!vmProgramInfo) {
-      throw new Error(
-        `Five VM program ${fiveVmProgramId} is not deployed on ${rpcUrl}. ` +
-          `Deploy/start Five VM on localnet or set FIVE_VM_PROGRAM_ID to a valid deployed program.`
-      );
-    }
+    const artifactPath = await resolveArtifactPath(projectRoot);
+    const artifactText = await readFile(artifactPath, 'utf8');
+    const loaded = await FiveSDK.loadFiveFile(artifactText);
 
-    const existingScript = process.env.FIVE_SCRIPT_ACCOUNT || '';
-    const deploy = existingScript
-      ? { scriptAccount: existingScript }
-      : await deployScript(connection, payer, loaded, fiveVmProgramId);
+    const scriptAccount = process.env.FIVE_SCRIPT_ACCOUNT || (await deployScript(connection, payer, loaded, fiveVmProgramId)).scriptAccount;
+    const program = FiveProgram.fromABI(scriptAccount, loaded.abi, { fiveVMProgramId: fiveVmProgramId });
 
-    const program = FiveProgram.fromABI(deploy.scriptAccount, loaded.abi, {
-      fiveVMProgramId: fiveVmProgramId,
-    });
-
-    const ownerProgram = vmProgramPk;
     const configAccount = Keypair.generate();
     const matchAccount = Keypair.generate();
     const profileP1Account = Keypair.generate();
     const profileP2Account = Keypair.generate();
 
+    const owner = new PublicKey(fiveVmProgramId);
     const setupSteps: StepResult[] = [];
-    setupSteps.push(await createOwnedAccount(connection, payer, configAccount, ownerProgram, 256));
-    setupSteps.push(await createOwnedAccount(connection, payer, matchAccount, ownerProgram, 2048));
-    setupSteps.push(await createOwnedAccount(connection, payer, profileP1Account, ownerProgram, 256));
-    setupSteps.push(await createOwnedAccount(connection, payer, profileP2Account, ownerProgram, 256));
+    setupSteps.push(await createOwnedAccount(connection, payer, configAccount, owner, 512));
+    setupSteps.push(await createOwnedAccount(connection, payer, matchAccount, owner, 2048));
+    setupSteps.push(await createOwnedAccount(connection, payer, profileP1Account, owner, 512));
+    setupSteps.push(await createOwnedAccount(connection, payer, profileP2Account, owner, 512));
 
-    for (const wallet of [player2, player3]) {
-      const sig = await connection.requestAirdrop(wallet.publicKey, 500_000_000);
-      const latest = await connection.getLatestBlockhash('confirmed');
-      await connection.confirmTransaction({ signature: sig, ...latest }, 'confirmed');
-    }
+    const state: LocalnetState = {
+      config: { turnTimeoutSecs: 0, allowOpenMatches: false, allowInvites: false, nonce: 0 },
+      match: {
+        status: MATCH_WAITING,
+        player1: payer.publicKey.toBase58(),
+        player2: payer.publicKey.toBase58(),
+        invitedPlayer: payer.publicKey.toBase58(),
+        invitedRequired: false,
+        currentTurn: TURN_P1,
+        winner: WINNER_NONE,
+        lastMoveIndex: 0,
+        moveCount: 0,
+        turnDeadlineTs: 0,
+        startedAtTs: 0,
+        endedAtTs: 0,
+      },
+      board: { cells: new Array(42).fill(0), heights: [0, 0, 0, 0, 0, 0, 0] },
+    };
 
-    const failed = setupSteps.find((s) => !s.ok);
-    if (failed) {
-      throw new Error(`failed setup account creation: ${failed.name}: ${failed.err || 'unknown error'}`);
-    }
-
-    return new LocalnetConnect4Engine({
-      projectRoot,
-      connection,
-      payer,
-      player2,
-      player3,
-      fiveVmProgramId,
-      scriptAccount: deploy.scriptAccount,
-      program,
-      configAccount,
-      matchAccount,
-      profileP1Account,
-      profileP2Account,
-      setupSteps,
-    });
+    return new LocalnetConnect4Engine(
+      connection, program, payer, player2, player3, fiveVmProgramId, scriptAccount,
+      configAccount, matchAccount, profileP1Account, profileP2Account, state, setupSteps
+    );
   }
 
-  getState(): LocalnetState {
-    return JSON.parse(JSON.stringify(this.state)) as LocalnetState;
-  }
+  getState(): LocalnetState { return JSON.parse(JSON.stringify(this.state)); }
 
   getAddresses() {
     return {
@@ -409,44 +293,23 @@ export class LocalnetConnect4Engine {
     };
   }
 
-  private keypairForRole(role: Role): Keypair {
-    if (role === 'p1') return this.payer;
-    if (role === 'p2') return this.player2;
-    return this.player3;
-  }
-
-  private rolePubkey(role: Role): string {
-    return this.keypairForRole(role).publicKey.toBase58();
-  }
+  private keypairForRole(role: Role): Keypair { return role === 'p1' ? this.payer : role === 'p2' ? this.player2 : this.player3; }
+  private rolePubkey(role: Role): string { return this.keypairForRole(role).publicKey.toBase58(); }
 
   private accountsFor(functionName: string, role: Role): Record<string, string> {
-    const p1 = this.payer.publicKey.toBase58();
-    const p2 = this.player2.publicKey.toBase58();
+    const p1 = this.rolePubkey('p1');
+    const p2 = this.rolePubkey('p2');
     const roleKey = this.rolePubkey(role);
 
-    if (functionName === 'init_config') return { config: this.configAccount.publicKey.toBase58(), authority: p1 };
-    if (functionName === 'init_profile') {
-      if (role === 'p1') return { profile: this.profileP1Account.publicKey.toBase58(), owner: p1 };
-      return { profile: this.profileP2Account.publicKey.toBase58(), owner: p2 };
-    }
-    if (functionName === 'create_open_match') {
-      return { config: this.configAccount.publicKey.toBase58(), match_state: this.matchAccount.publicKey.toBase58(), player1: p1 };
-    }
-    if (functionName === 'create_invite_match') {
-      return {
-        config: this.configAccount.publicKey.toBase58(),
-        match_state: this.matchAccount.publicKey.toBase58(),
-        player1: p1,
-        invited_player: p2,
-      };
-    }
-    if (functionName === 'join_match') {
-      return { config: this.configAccount.publicKey.toBase58(), match_state: this.matchAccount.publicKey.toBase58(), player2: roleKey };
-    }
-    if (functionName === 'play_c4' || functionName === 'claim_timeout' || functionName === 'resign' || functionName === 'cancel_waiting_match') {
+    if (functionName === 'init_connect4_config') return { config: this.configAccount.publicKey.toBase58(), authority: p1 };
+    if (functionName === 'init_connect4_profile') return { profile: role === 'p1' ? this.profileP1Account.publicKey.toBase58() : this.profileP2Account.publicKey.toBase58(), owner: roleKey };
+    if (functionName === 'create_open_connect4_match') return { config: this.configAccount.publicKey.toBase58(), match_state: this.matchAccount.publicKey.toBase58(), player1: p1 };
+    if (functionName === 'create_invite_connect4_match') return { config: this.configAccount.publicKey.toBase58(), match_state: this.matchAccount.publicKey.toBase58(), player1: p1, invited_player: p2 };
+    if (functionName === 'join_connect4_match') return { config: this.configAccount.publicKey.toBase58(), match_state: this.matchAccount.publicKey.toBase58(), player2: roleKey };
+    if (functionName === 'play_connect4' || functionName === 'claim_connect4_timeout' || functionName === 'resign_connect4_match' || functionName === 'cancel_waiting_connect4_match') {
       return { match_state: this.matchAccount.publicKey.toBase58(), caller: roleKey };
     }
-    if (functionName === 'get_match_status' || functionName === 'get_match_turn' || functionName === 'get_match_winner') {
+    if (functionName === 'get_connect4_match_status' || functionName === 'get_connect4_match_turn' || functionName === 'get_connect4_match_winner') {
       return { match_state: this.matchAccount.publicKey.toBase58() };
     }
     return {};
@@ -454,142 +317,105 @@ export class LocalnetConnect4Engine {
 
   private async call(functionName: string, role: Role, args: Record<string, any> = {}): Promise<StepResult> {
     const actor = this.keypairForRole(role);
-    let builder = this.program
-      .function(functionName)
-      .payer(this.payer.publicKey.toBase58())
-      .accounts(this.accountsFor(functionName, role));
-
-    if (Object.keys(args).length > 0) {
-      builder = builder.args(args);
-    }
-
+    let builder = this.program.function(functionName).payer(this.payer.publicKey.toBase58()).accounts(this.accountsFor(functionName, role));
+    if (Object.keys(args).length > 0) builder = builder.args(args);
     const ix = await builder.instruction();
     const signers = actor.publicKey.equals(this.payer.publicKey) ? [] : [actor];
     return sendIx(this.connection, this.payer, ix, signers, `${functionName}:${role}`);
   }
 
-  async initGame(turnTimeoutSecs = 120): Promise<StepResult[]> {
+  private async nowSlot(): Promise<number> { return Number(await this.connection.getSlot('confirmed')); }
+  private resetBoard() { this.state.board.cells = new Array(42).fill(0); this.state.board.heights = [0, 0, 0, 0, 0, 0, 0]; }
+
+  async initGame(turnTimeoutSecs = 2): Promise<StepResult[]> {
     const steps: StepResult[] = [];
-
-    steps.push(
-      await this.call('init_config', 'p1', {
-        turn_timeout_secs: turnTimeoutSecs,
-        allow_open_matches: 1,
-        allow_invites: 1,
-      })
-    );
-    steps.push(await this.call('init_profile', 'p1', {}));
-    steps.push(await this.call('init_profile', 'p2', {}));
-
+    steps.push(await this.call('init_connect4_config', 'p1', { turn_timeout_secs: turnTimeoutSecs, allow_open_matches: 1, allow_invites: 1 }));
+    steps.push(await this.call('init_connect4_profile', 'p1', {}));
+    steps.push(await this.call('init_connect4_profile', 'p2', {}));
     if (steps.every((s) => s.ok)) {
       this.state.config.turnTimeoutSecs = turnTimeoutSecs;
       this.state.config.allowOpenMatches = true;
       this.state.config.allowInvites = true;
       this.state.config.nonce = 0;
     }
-
     return steps;
   }
 
-  private async nowSlot(): Promise<number> {
-    return Number(await this.connection.getSlot('confirmed'));
-  }
-
-  private resetBoard() {
-    this.state.board = new Array(42).fill(0);
-    this.state.heights = [0, 0, 0, 0, 0, 0, 0];
-  }
-
-  async createOpen(_mode: GameMode): Promise<StepResult> {
-    const step = await this.call('create_open_match', 'p1', { mode: MODE_C4 });
+  async createOpen(): Promise<StepResult> {
+    const step = await this.call('create_open_connect4_match', 'p1');
     if (!step.ok) return step;
-
     this.state.config.nonce += 1;
-    const now = await this.nowSlot();
     this.resetBoard();
-
-    this.state.match.mode = MODE_C4;
-    this.state.match.status = MATCH_WAITING;
-    this.state.match.player1 = this.rolePubkey('p1');
-    this.state.match.player2 = this.rolePubkey('p1');
-    this.state.match.invitedPlayer = this.rolePubkey('p1');
-    this.state.match.invitedRequired = false;
-    this.state.match.currentTurn = TURN_P1;
-    this.state.match.winner = WINNER_NONE;
-    this.state.match.lastMoveIndex = 0;
-    this.state.match.moveCount = 0;
-    this.state.match.createdAtTs = now;
-    this.state.match.startedAtTs = 0;
-    this.state.match.turnDeadlineTs = 0;
-    this.state.match.endedAtTs = 0;
-
+    this.state.match = {
+      ...this.state.match,
+      status: MATCH_WAITING,
+      player1: this.rolePubkey('p1'),
+      player2: this.rolePubkey('p1'),
+      invitedPlayer: this.rolePubkey('p1'),
+      invitedRequired: false,
+      currentTurn: TURN_P1,
+      winner: WINNER_NONE,
+      lastMoveIndex: 0,
+      moveCount: 0,
+      turnDeadlineTs: 0,
+      startedAtTs: 0,
+      endedAtTs: 0,
+    };
     return step;
   }
 
-  async createInvite(_mode: GameMode): Promise<StepResult> {
-    const step = await this.call('create_invite_match', 'p1', { mode: MODE_C4 });
+  async createInvite(): Promise<StepResult> {
+    const step = await this.call('create_invite_connect4_match', 'p1');
     if (!step.ok) return step;
-
     this.state.config.nonce += 1;
-    const now = await this.nowSlot();
     this.resetBoard();
-
-    this.state.match.mode = MODE_C4;
-    this.state.match.status = MATCH_WAITING;
-    this.state.match.player1 = this.rolePubkey('p1');
-    this.state.match.player2 = this.rolePubkey('p1');
-    this.state.match.invitedPlayer = this.rolePubkey('p2');
-    this.state.match.invitedRequired = true;
-    this.state.match.currentTurn = TURN_P1;
-    this.state.match.winner = WINNER_NONE;
-    this.state.match.lastMoveIndex = 0;
-    this.state.match.moveCount = 0;
-    this.state.match.createdAtTs = now;
-    this.state.match.startedAtTs = 0;
-    this.state.match.turnDeadlineTs = 0;
-    this.state.match.endedAtTs = 0;
-
+    this.state.match = {
+      ...this.state.match,
+      status: MATCH_WAITING,
+      player1: this.rolePubkey('p1'),
+      player2: this.rolePubkey('p1'),
+      invitedPlayer: this.rolePubkey('p2'),
+      invitedRequired: true,
+      currentTurn: TURN_P1,
+      winner: WINNER_NONE,
+      lastMoveIndex: 0,
+      moveCount: 0,
+      turnDeadlineTs: 0,
+      startedAtTs: 0,
+      endedAtTs: 0,
+    };
     return step;
   }
 
   async join(role: Role = 'p2'): Promise<StepResult> {
-    const step = await this.call('join_match', role, {});
+    const step = await this.call('join_connect4_match', role);
     if (!step.ok) return step;
-
     const now = await this.nowSlot();
     this.state.match.player2 = this.rolePubkey(role);
     this.state.match.status = MATCH_ACTIVE;
     this.state.match.currentTurn = TURN_P1;
     this.state.match.startedAtTs = now;
     this.state.match.turnDeadlineTs = now + this.state.config.turnTimeoutSecs;
-
     return step;
   }
 
-  async playC4(role: Role, column: number): Promise<StepResult> {
-    const step = await this.call('play_c4', role, { column_index: column });
+  async play(role: Role, column: number): Promise<StepResult> {
+    const step = await this.call('play_connect4', role, { column_index: column });
     if (!step.ok) return step;
 
-    const row = this.state.heights[column];
-    this.state.heights[column] += 1;
-
+    const row = this.state.board.heights[column];
+    this.state.board.heights[column] += 1;
     const seat = role === 'p1' ? WINNER_P1 : WINNER_P2;
     const idx = c4Index(row, column);
-    this.state.board[idx] = seat;
+    this.state.board.cells[idx] = seat;
     this.state.match.lastMoveIndex = idx;
     this.state.match.moveCount += 1;
 
-    const winner = detectC4Winner(this.state.board);
+    const winner = detectC4Winner(this.state.board.cells);
     const now = await this.nowSlot();
-    if (winner === WINNER_P1) {
-      this.state.match.status = MATCH_P1_WIN;
-      this.state.match.winner = WINNER_P1;
-      this.state.match.endedAtTs = now;
-      return step;
-    }
-    if (winner === WINNER_P2) {
-      this.state.match.status = MATCH_P2_WIN;
-      this.state.match.winner = WINNER_P2;
+    if (winner === WINNER_P1 || winner === WINNER_P2) {
+      this.state.match.status = winner === WINNER_P1 ? MATCH_P1_WIN : MATCH_P2_WIN;
+      this.state.match.winner = winner;
       this.state.match.endedAtTs = now;
       return step;
     }
@@ -606,9 +432,8 @@ export class LocalnetConnect4Engine {
   }
 
   async claimTimeout(role: Role): Promise<StepResult> {
-    const step = await this.call('claim_timeout', role, {});
+    const step = await this.call('claim_connect4_timeout', role);
     if (!step.ok) return step;
-
     const now = await this.nowSlot();
     const winner = role === 'p1' ? WINNER_P1 : WINNER_P2;
     this.state.match.winner = winner;
@@ -618,9 +443,8 @@ export class LocalnetConnect4Engine {
   }
 
   async resign(role: Role): Promise<StepResult> {
-    const step = await this.call('resign', role, {});
+    const step = await this.call('resign_connect4_match', role);
     if (!step.ok) return step;
-
     const now = await this.nowSlot();
     const winner = role === 'p1' ? WINNER_P2 : WINNER_P1;
     this.state.match.winner = winner;
@@ -630,14 +454,17 @@ export class LocalnetConnect4Engine {
   }
 
   async cancel(): Promise<StepResult> {
-    const step = await this.call('cancel_waiting_match', 'p1', {});
+    const step = await this.call('cancel_waiting_connect4_match', 'p1');
     if (!step.ok) return step;
-
     this.state.match.status = MATCH_CANCELLED;
     this.state.match.winner = WINNER_NONE;
     this.state.match.endedAtTs = await this.nowSlot();
     return step;
   }
+
+  async getStatus(): Promise<StepResult> { return this.call('get_connect4_match_status', 'p1'); }
+  async getTurn(): Promise<StepResult> { return this.call('get_connect4_match_turn', 'p1'); }
+  async getWinner(): Promise<StepResult> { return this.call('get_connect4_match_winner', 'p1'); }
 
   async waitForTimeoutWindow(): Promise<void> {
     const target = this.state.match.turnDeadlineTs + 1;
@@ -647,17 +474,9 @@ export class LocalnetConnect4Engine {
       now = await this.nowSlot();
     }
   }
-
-  async readOnchainSummary(): Promise<{ status: StepResult; turn: StepResult; winner: StepResult }> {
-    const status = await this.call('get_match_status', 'p1', {});
-    const turn = await this.call('get_match_turn', 'p1', {});
-    const winner = await this.call('get_match_winner', 'p1', {});
-    return { status, turn, winner };
-  }
 }
 
 export const constants = {
-  MODE_C4,
   MATCH_WAITING,
   MATCH_ACTIVE,
   MATCH_P1_WIN,

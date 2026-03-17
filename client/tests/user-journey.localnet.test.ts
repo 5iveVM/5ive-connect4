@@ -8,39 +8,45 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = resolve(__dirname, '..', '..', '..');
 
-test('full localnet user journey: c4 + invite + timeout', async () => {
+function mustPass(step: { name: string; ok: boolean; err: string | null }) {
+  assert.equal(step.ok, true, `${step.name} failed: ${step.err || 'unknown error'}`);
+}
+
+test('full localnet user journey with all public endpoints', async () => {
   const engine = await LocalnetConnect4Engine.create(projectRoot);
+  engine.setupSteps.forEach(mustPass);
+  (await engine.initGame(2)).forEach(mustPass);
 
-  const setup = await engine.initGame(2);
-  assert.equal(setup.every((s) => s.ok), true);
-  let state = engine.getState();
+  mustPass(await engine.createOpen());
+  mustPass(await engine.join('p2'));
+  mustPass(await engine.play('p1', 0));
+  mustPass(await engine.play('p2', 1));
+  mustPass(await engine.play('p1', 0));
+  mustPass(await engine.play('p2', 1));
+  mustPass(await engine.play('p1', 0));
+  mustPass(await engine.play('p2', 1));
+  mustPass(await engine.play('p1', 0));
 
-  // Open C4 game
-  assert.equal((await engine.createOpen('c4')).ok, true);
-  assert.equal((await engine.join('p2')).ok, true);
-  assert.equal((await engine.playC4('p1', 0)).ok, true);
-  assert.equal((await engine.playC4('p2', 1)).ok, true);
-  assert.equal((await engine.playC4('p1', 0)).ok, true);
-  assert.equal((await engine.playC4('p2', 1)).ok, true);
-  assert.equal((await engine.playC4('p1', 0)).ok, true);
-  assert.equal((await engine.playC4('p2', 1)).ok, true);
-  assert.equal((await engine.playC4('p1', 0)).ok, true);
+  mustPass(await engine.getStatus());
+  mustPass(await engine.getTurn());
+  mustPass(await engine.getWinner());
+  assert.equal(engine.getState().match.status, constants.MATCH_P1_WIN);
 
-  state = engine.getState();
-  assert.equal(state.match.status, constants.MATCH_P1_WIN);
-
-  // Invite flow + rejection
-  assert.equal((await engine.createInvite('c4')).ok, true);
+  mustPass(await engine.createInvite());
   const wrongJoin = await engine.join('p3');
   assert.equal(wrongJoin.ok, false);
-  assert.equal((await engine.join('p2')).ok, true);
+  mustPass(await engine.join('p2'));
 
-  // Timeout flow
-  assert.equal((await engine.playC4('p1', 2)).ok, true);
+  mustPass(await engine.play('p1', 2));
   await engine.waitForTimeoutWindow();
-  const timeoutClaim = await engine.claimTimeout('p1');
-  assert.equal(timeoutClaim.ok, true);
+  mustPass(await engine.claimTimeout('p1'));
 
-  state = engine.getState();
-  assert.equal(state.match.status, constants.MATCH_P1_WIN);
+  mustPass(await engine.createOpen());
+  mustPass(await engine.cancel());
+  assert.equal(engine.getState().match.status, constants.MATCH_CANCELLED);
+
+  mustPass(await engine.createOpen());
+  mustPass(await engine.join('p2'));
+  mustPass(await engine.resign('p2'));
+  assert.equal(engine.getState().match.status, constants.MATCH_P1_WIN);
 });

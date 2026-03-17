@@ -17,21 +17,15 @@
       "lamports": 1000000,
       "data_len": 256,
       "is_writable": true
-    },
-    "profile_p2": {
-      "owner": "system",
-      "lamports": 1000000,
-      "data_len": 256,
-      "is_writable": true
     }
   },
   "tests": {
-    "test_c4_vertical_win": {
-      "parameters": [4],
+    "test_connect4_column_starts_empty": {
+      "parameters": [0, 0],
       "expected": { "success": true }
     },
-    "test_c4_horizontal_win": {
-      "parameters": [4],
+    "test_connect4_rejects_full_column": {
+      "parameters": [6],
       "expected": { "success": true }
     }
   }
