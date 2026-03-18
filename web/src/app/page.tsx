@@ -19,7 +19,7 @@ type GameState = {
   phase: "not_started" | "waiting" | "active" | "finished" | "cancelled";
 };
 
-const DEFAULT_VM_PROGRAM_ID = process.env.NEXT_PUBLIC_FIVE_VM_PROGRAM_ID || "5ive5uKDkc3Yhyfu1Sk7i3eVPDQUmG2GmTm2FnUZiTJd";
+const DEFAULT_VM_PROGRAM_ID = process.env.NEXT_PUBLIC_FIVE_VM_PROGRAM_ID || "5ive5hbC3aRsvq37MP5m4sHtTSFxT4Cq1smS4ddyWJ6h";
 const DEFAULT_SCRIPT_ACCOUNT = process.env.NEXT_PUBLIC_FIVE_SCRIPT_ACCOUNT || "";
 const CONFIRM_OPTS: ConfirmOptions = { commitment: "confirmed", preflightCommitment: "confirmed", skipPreflight: false };
 

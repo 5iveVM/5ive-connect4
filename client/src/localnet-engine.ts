@@ -225,7 +225,7 @@ export class LocalnetConnect4Engine {
   static async create(projectRoot: string): Promise<LocalnetConnect4Engine> {
     const network = process.env.FIVE_NETWORK || 'localnet';
     const rpcUrl = process.env.FIVE_RPC_URL || (network === 'localnet' ? 'http://127.0.0.1:8899' : 'https://api.devnet.solana.com');
-    const fiveVmProgramId = process.env.FIVE_VM_PROGRAM_ID || '5ive5uKDkc3Yhyfu1Sk7i3eVPDQUmG2GmTm2FnUZiTJd';
+    const fiveVmProgramId = process.env.FIVE_VM_PROGRAM_ID || '5ive5hbC3aRsvq37MP5m4sHtTSFxT4Cq1smS4ddyWJ6h';
 
     const connection = new Connection(rpcUrl, 'confirmed');
     const payer = await loadPayer();
