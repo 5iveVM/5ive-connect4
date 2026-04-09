@@ -33,3 +33,9 @@ Thumbs.db
 # Local generated assets
 client/dist/
 *.v.debug
+target/
+dist/
+.env.*.local
+CLAUDE.md
+GEMINI.md
+AGENTS.md
